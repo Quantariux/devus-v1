@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="currentColor">
+  <!-- Top Cube (center: 50, 24) -->
+  <polygon points="50,17 62,24 50,31 38,24" opacity="1.0" />
+  <polygon points="38,24 50,31 50,43 38,36" opacity="0.8" />
+  <polygon points="50,31 62,24 62,36 50,43" opacity="0.6" />
+
+  <!-- Bottom Cube (center: 50, 76) -->
+  <polygon points="50,69 62,76 50,83 38,76" opacity="1.0" />
+  <polygon points="38,76 50,83 50,95 38,88" opacity="0.8" />
+  <polygon points="50,83 62,76 62,88 50,95" opacity="0.6" />
+
+  <!-- Middle Cube (center: 50, 50) -->
+  <polygon points="50,43 62,50 50,57 38,50" opacity="1.0" />
+  <polygon points="38,50 50,57 50,69 38,62" opacity="0.8" />
+  <polygon points="50,57 62,50 62,62 50,69" opacity="0.6" />
+
+  <!-- Left Tail (pointing left) -->
+  <!-- Top Wing - upper facet -->
+  <polygon points="38,24 14,50 38,43" opacity="0.8" />
+  <!-- Top Wing - lower/inner facet -->
+  <polygon points="38,43 14,50 28,50" opacity="0.4" />
+  <!-- Bottom Wing - inner/upper facet -->
+  <polygon points="38,57 28,50 14,50" opacity="0.5" />
+  <!-- Bottom Wing - lower facet -->
+  <polygon points="38,57 14,50 38,76" opacity="0.8" />
+
+  <!-- Right Head (pointing right) -->
+  <!-- Top Wing - upper facet -->
+  <polygon points="62,24 86,50 62,43" opacity="1.0" />
+  <!-- Top Wing - lower/inner facet -->
+  <polygon points="62,43 86,50 72,50" opacity="0.4" />
+  <!-- Bottom Wing - inner/upper facet -->
+  <polygon points="62,57 72,50 86,50" opacity="0.5" />
+  <!-- Bottom Wing - lower facet -->
+  <polygon points="62,57 86,50 62,76" opacity="0.8" />
+</svg>

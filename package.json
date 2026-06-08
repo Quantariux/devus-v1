@@ -9,10 +9,12 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@hugeicons/core-free-icons": "^4.2.0",
     "@hugeicons/react": "^1.1.6",
     "@monaco-editor/react": "^4.7.0",
     "@pierre/trees": "^1.0.0-beta.4",
+    "firebase": "^12.14.0",
     "next": "16.2.7",
     "react": "19.2.4",
     "react-dom": "19.2.4"

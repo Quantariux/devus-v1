@@ -1,10 +1,13 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import Link from "next/link";
 import styles from "./page.module.css";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { FileTree, useFileTree, useFileTreeSelection } from "@pierre/trees/react";
 import Editor from "@monaco-editor/react";
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, User } from "firebase/auth";
 import {
   Settings01Icon,
   Clock01Icon,
@@ -61,85 +64,9 @@ interface ProjectFile {
   content: string;
 }
 
-const PRESET_FILES: Record<string, ProjectFile[]> = {
-  welcome: [
-    {
-      name: "Readme.md",
-      language: "markdown",
-      content: `# UX Design Assistant Workspace\n\nWelcome to your dynamic UX workspace! This assistant is configured to help you design sleek, premium, and classic interfaces.\n\n### Recommended Actions:\n- Use the search tool to inspect design coordinates.\n- Click suggestion chips to draft context models.\n- Verify mobile constraints in the Preview tab.`
-    },
-    {
-      name: "assistant-config.json",
-      language: "json",
-      content: `{\n  "agentName": "UX Design Assistant",\n  "model": "GPT-5.2",\n  "temperature": 0.2,\n  "systemContext": "Design-first mobile optimizer",\n  "defaultTheme": "Obsidian Dark"\n}`
-    }
-  ],
-  onboarding: [
-    {
-      name: "OnboardingStepper.tsx",
-      language: "typescript",
-      content: `import React, { useState } from 'react';\nimport './AuthMatrix.css';\n\nexport default function OnboardingStepper() {\n  const [step, setStep] = useState(1);\n  const [oauthEnabled, setOauthEnabled] = useState(false);\n\n  return (\n    <div className="stepper-card">\n      <h3>Step {step} of 3: Verification</h3>\n      <p>Fill out the profile credentials or authenticate via Single Sign-On.</p>\n      \n      {oauthEnabled ? (\n        <button className="sso-btn active">SSO authenticated</button>\n      ) : (\n        <button className="sso-btn" onClick={() => setOauthEnabled(true)}>\n          One-Tap Google Authenticate\n        </button>\n      )}\n      \n      <div className="stepper-footer">\n        <button onClick={() => setStep(s => Math.max(1, s-1))}>Back</button>\n        <button onClick={() => setStep(s => Math.min(3, s+1))}>Next</button>\n      </div>\n    </div>\n  );\n}`
-    },
-    {
-      name: "AuthMatrix.css",
-      language: "css",
-      content: `.stepper-card {\n  background: var(--bg-prompt-input);\n  border: 1px solid var(--border-prompt-input);\n  border-radius: 12px;\n  padding: 24px;\n}\n.sso-btn {\n  width: 100%;\n  padding: 12px;\n  border-radius: 8px;\n  background-color: var(--accent-purple);\n  color: #fff;\n  font-weight: 600;\n  cursor: pointer;\n}`
-    },
-    {
-      name: "analytics.json",
-      language: "json",
-      content: `{\n  "onboardingDropOffs": {\n    "step1_credentials": "45%",\n    "step2_verification": "35%",\n    "step3_profileSetup": "10%"\n  },\n  "recommendation": "Reduce initial signup forms from 8 fields to 1 OAuth click."\n}`
-    }
-  ],
-  remote: [
-    {
-      name: "WorkspaceSwitcher.tsx",
-      language: "typescript",
-      content: `import React, { useState } from 'react';\n\nexport default function WorkspaceSwitcher() {\n  const [activeTab, setActiveTab] = useState<'work' | 'personal'>('work');\n\n  return (\n    <div className="workspace-tabs">\n      <button \n        className={activeTab === 'work' ? 'tab active' : 'tab'} \n        onClick={() => setActiveTab('work')}\n      >\n        Work Space\n      </button>\n      <button \n        className={activeTab === 'personal' ? 'tab active' : 'tab'} \n        onClick={() => setActiveTab('personal')}\n      >\n        Personal Space\n      </button>\n    </div>\n  );\n}`
-    },
-    {
-      name: "TimeBadge.tsx",
-      language: "typescript",
-      content: `import React from 'react';\n\nexport default function TimeBadge({ label, minutes }: { label: string, minutes: number }) {\n  return (\n    <div className="badge-wrapper">\n      <span className="badge-dot"></span>\n      <span className="badge-label">{label} ({minutes}m)</span>\n    </div>\n  );\n}`
-    }
-  ],
-  research: [
-    {
-      name: "PersonaMatrix.tsx",
-      language: "typescript",
-      content: `import React from 'react';\n\nexport default function PersonaMatrix() {\n  const personas = [\n    { name: "Remote Manager", focus: "Asynchronous updates", dropoff: "High tool friction" },\n    { name: "Solo Professional", focus: "Micro-task scheduling", dropoff: "Form fatigue" }\n  ];\n\n  return (\n    <div className="matrix-grid">\n      {personas.map((p, idx) => (\n        <div key={idx} className="persona-card">\n          <h4>{p.name}</h4>\n          <p>Focus: {p.focus}</p>\n          <span className="friction-tag">{p.dropoff}</span>\n        </div>\n      ))}\n    </div>\n  );\n}`
-    },
-    {
-      name: "SurveyModal.css",
-      language: "css",
-      content: `.persona-card {\n  border: 1px solid var(--border-chip);\n  background: var(--bg-chip);\n  padding: 16px;\n  border-radius: 8px;\n}\n.friction-tag {\n  font-size: 0.72rem;\n  color: var(--accent-purple);\n  font-weight: 700;\n}`
-    }
-  ]
-};
 
-const DEFAULT_FILES: ProjectFile[] = [
-  {
-    name: "App.tsx",
-    language: "typescript",
-    content: `import React from 'react';\n\nexport default function App() {\n  return (\n    <div className="app-canvas">\n      <h3>Agent Workspace</h3>\n      <p>Use the chat interface to instruct the agent and modify files in real-time.</p>\n    </div>\n  );\n}`
-  },
-  {
-    name: "index.css",
-    language: "css",
-    content: `.app-canvas {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  height: 100%;\n  font-family: sans-serif;\n  color: var(--text-main);\n}`
-  },
-  {
-    name: "package.json",
-    language: "json",
-    content: `{\n  "name": "agent-workspace-task",\n  "version": "1.0.0",\n  "dependencies": {\n    "react": "^18.2.0",\n    "react-dom": "^18.2.0"\n  }\n}`
-  }
-];
 
-const getFilesForSession = (sessionId: string): ProjectFile[] => {
-  const key = ["welcome", "onboarding", "remote", "research"].includes(sessionId) ? sessionId : "default";
-  if (key === "default") return DEFAULT_FILES;
-  return PRESET_FILES[key] || DEFAULT_FILES;
-};
+
 
 interface TerminalLogEntry {
   timestamp: string;
@@ -173,6 +100,83 @@ const DEFAULT_LOGS: TerminalLogEntry[] = [
   { timestamp: "12:00:02 PM", type: "agent", message: "Waiting for instructions. Code editor and sandbox ready." }
 ];
 
+const conversationTemplates: SavedConversation[] = [
+  {
+    id: "welcome",
+    title: "UX Design Assistant",
+    messages: [
+      {
+        id: 1,
+        sender: "assistant",
+        text: "Hello! I am your UX Design Assistant. I can help you clarify user drop-offs, define user contexts, or refine requirements. Click any suggestion chip below or type a custom query to start.",
+        timestamp: "9:41 AM",
+        model: "GPT-5.2",
+        agent: "UX Design Assistant"
+      }
+    ]
+  },
+  {
+    id: "onboarding",
+    title: "UX Onboarding Funnel",
+    messages: [
+      {
+        id: 1,
+        sender: "user",
+        text: "Help me understand why users are dropping off during onboarding",
+        timestamp: "9:42 AM"
+      },
+      {
+        id: 2,
+        sender: "assistant",
+        text: `### UX Analysis: Onboarding Drop-offs\n\nBased on user analytics, here are the key factors causing onboarding drop-offs:\n\n1. **Information Overload**: Users are requested to fill out an average of **8.2 form fields** on step one. \n2. **Delayed Gratification**: Users must verify their email *before* accessing the dashboard, disrupting the immediate value loop.\n3. **Lack of Contextual Guidance**: No progressive tutorials or interactive states are provided on initial load.\n\n### Proposed Solutions:\n- **Implement One-Tap OAuth**: Allow users to authenticate instantly via Google/Apple credentials.\n- **Progressive Profiling**: Delay non-essential questions until the user has successfully set up their first task.\n- **Interactive Checklists**: Guide users with a visual, step-by-step progress checklist to prompt completion.`,
+        timestamp: "9:43 AM",
+        model: "GPT-5.2",
+        agent: "UX Design Assistant"
+      }
+    ]
+  },
+  {
+    id: "remote",
+    title: "Remote Worker Profile",
+    messages: [
+      {
+        id: 1,
+        sender: "user",
+        text: "Describe the user context of a remote worker trying to manage team tasks",
+        timestamp: "10:15 AM"
+      },
+      {
+        id: 2,
+        sender: "assistant",
+        text: `### User Context Profile: Remote Workspace Worker\n\nRemote workers manage tasks under specific constraints. Here is the context outline:\n\n- **Asynchronous Collaboration**: Focuses on clear documentation rather than real-time synchronous meetings.\n- **Task Switching & Distractions**: Often balances personal and work tasks on a single device, requiring immediate focus triggers.\n- **Tool Fatigue**: Overwhelmed by excessive notification flags. They prefer single-purpose dashboards.\n\n### Design Recommendation:\n- Create distinct **Work** and **Personal** workspace tabs (utilizing HSL color indicators to prevent workspace bleeding).\n- Incorporate simple time badges (like **5 min stand-up** flags) to manage micro-moments.`,
+        timestamp: "10:16 AM",
+        model: "GPT-5.2",
+        agent: "UX Design Assistant"
+      }
+    ]
+  },
+  {
+    id: "research",
+    title: "Research Deliverables",
+    messages: [
+      {
+        id: 1,
+        sender: "user",
+        text: "What are the key deliverables for a user research and workflow analysis plan?",
+        timestamp: "11:20 AM"
+      },
+      {
+        id: 2,
+        sender: "assistant",
+        text: `### Deliverables Checklist: UX Research Plan\n\nTo properly analyze why users drop off and validate your requirements, prioritize these deliverables:\n\n1. **User Persona Alignment Matrix**: Details typical user archetypes (e.g. Remote Managers, Solo Professionals).\n2. **Onboarding Funnel Mapping**: Pinpoints the exact page and field coordinates where drop-offs exceed 15%.\n3. **High-Fidelity UI Prototypes**: Interactive wireframes demonstrating progressive onboarding forms.\n4. **Post-Onboarding Survey Framework**: Focuses on post-setup feedback rather than intrusive sign-up modals.`,
+        timestamp: "11:21 AM",
+        model: "GPT-5.2",
+        agent: "UX Design Assistant"
+      }
+    ]
+  }
+];
+
 const getLogsForSession = (sessionId: string): TerminalLogEntry[] => {
   const key = ["welcome", "onboarding", "remote", "research"].includes(sessionId) ? sessionId : "default";
   if (key === "default") return DEFAULT_LOGS;
@@ -180,102 +184,288 @@ const getLogsForSession = (sessionId: string): TerminalLogEntry[] => {
 };
 
 export default function Home() {
-  // Saved chat templates matching our preset topics
-  const conversationTemplates: SavedConversation[] = [
-    {
-      id: "welcome",
-      title: "UX Design Assistant",
-      messages: [
-        {
-          id: 1,
-          sender: "assistant",
-          text: "Hello! I am your UX Design Assistant. I can help you clarify user drop-offs, define user contexts, or refine requirements. Click any suggestion chip below or type a custom query to start.",
-          timestamp: "9:41 AM",
-          model: "GPT-5.2",
-          agent: "UX Design Assistant"
-        }
-      ]
-    },
-    {
-      id: "onboarding",
-      title: "UX Onboarding Funnel",
-      messages: [
-        {
-          id: 1,
-          sender: "user",
-          text: "Help me understand why users are dropping off during onboarding",
-          timestamp: "9:42 AM"
-        },
-        {
-          id: 2,
-          sender: "assistant",
-          text: `### UX Analysis: Onboarding Drop-offs\n\nBased on user analytics, here are the key factors causing onboarding drop-offs:\n\n1. **Information Overload**: Users are requested to fill out an average of **8.2 form fields** on step one. \n2. **Delayed Gratification**: Users must verify their email *before* accessing the dashboard, disrupting the immediate value loop.\n3. **Lack of Contextual Guidance**: No progressive tutorials or interactive states are provided on initial load.\n\n### Proposed Solutions:\n- **Implement One-Tap OAuth**: Allow users to authenticate instantly via Google/Apple credentials.\n- **Progressive Profiling**: Delay non-essential questions until the user has successfully set up their first task.\n- **Interactive Checklists**: Guide users with a visual, step-by-step progress checklist to prompt completion.`,
-          timestamp: "9:43 AM",
-          model: "GPT-5.2",
-          agent: "UX Design Assistant"
-        }
-      ]
-    },
-    {
-      id: "remote",
-      title: "Remote Worker Profile",
-      messages: [
-        {
-          id: 1,
-          sender: "user",
-          text: "Describe the user context of a remote worker trying to manage team tasks",
-          timestamp: "10:15 AM"
-        },
-        {
-          id: 2,
-          sender: "assistant",
-          text: `### User Context Profile: Remote Workspace Worker\n\nRemote workers manage tasks under specific constraints. Here is the context outline:\n\n- **Asynchronous Collaboration**: Focuses on clear documentation rather than real-time synchronous meetings.\n- **Task Switching & Distractions**: Often balances personal and work tasks on a single device, requiring immediate focus triggers.\n- **Tool Fatigue**: Overwhelmed by excessive notification flags. They prefer single-purpose dashboards.\n\n### Design Recommendation:\n- Create distinct **Work** and **Personal** workspace tabs (utilizing HSL color indicators to prevent workspace bleeding).\n- Incorporate simple time badges (like **5 min stand-up** flags) to manage micro-moments.`,
-          timestamp: "10:16 AM",
-          model: "GPT-5.2",
-          agent: "UX Design Assistant"
-        }
-      ]
-    },
-    {
-      id: "research",
-      title: "Research Deliverables",
-      messages: [
-        {
-          id: 1,
-          sender: "user",
-          text: "What are the key deliverables for a user research and workflow analysis plan?",
-          timestamp: "11:20 AM"
-        },
-        {
-          id: 2,
-          sender: "assistant",
-          text: `### Deliverables Checklist: UX Research Plan\n\nTo properly analyze why users drop off and validate your requirements, prioritize these deliverables:\n\n1. **User Persona Alignment Matrix**: Details typical user archetypes (e.g. Remote Managers, Solo Professionals).\n2. **Onboarding Funnel Mapping**: Pinpoints the exact page and field coordinates where drop-offs exceed 15%.\n3. **High-Fidelity UI Prototypes**: Interactive wireframes demonstrating progressive onboarding forms.\n4. **Post-Onboarding Survey Framework**: Focuses on post-setup feedback rather than intrusive sign-up modals.`,
-          timestamp: "11:21 AM",
-          model: "GPT-5.2",
-          agent: "UX Design Assistant"
-        }
-      ]
-    }
-  ];
+
+  // Auth states
+  const [authReady, setAuthReady] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [idToken, setIdToken] = useState<string | null>(null);
+  const [profile, setProfile] = useState<{ role: string; balance: number } | null>(null);
+  
+  // Auth UI state
+  const [emailInput, setEmailInput] = useState("");
+  const [passwordInput, setPasswordInput] = useState("");
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
 
   // Active states
   const [activeSessionId, setActiveSessionId] = useState("welcome");
-  const [conversations, setConversations] = useState<SavedConversation[]>(conversationTemplates);
-  
-  const activeConversation = conversations.find((c) => c.id === activeSessionId) || conversations[0];
-  const messages = activeConversation.messages;
+  const [conversations, setConversations] = useState<SavedConversation[]>([]);
+  const hasLoadedRef = useRef(false);
+
+  // Auth dynamic initialization
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        const configRes = await fetch("/api/auth/config");
+        const firebaseConfig = await configRes.json();
+        
+        const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+        const auth = getAuth(app);
+        
+        return onAuthStateChanged(auth, async (firebaseUser) => {
+          if (firebaseUser) {
+            setUser(firebaseUser);
+            const token = await firebaseUser.getIdToken();
+            setIdToken(token);
+            
+            // Sync/Verify with server-side profile
+            const verifyRes = await fetch("/api/auth/verify", {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${token}`
+              }
+            });
+            if (verifyRes.ok) {
+              const verifyData = await verifyRes.json();
+              setProfile(verifyData.user);
+            }
+          } else {
+            setUser(null);
+            setIdToken(null);
+            setProfile(null);
+          }
+          setAuthReady(true);
+        });
+      } catch (err) {
+        console.error("Firebase auth init failed:", err);
+        setAuthReady(true);
+      }
+    };
+    
+    let unsubscribe: (() => void) | undefined = undefined;
+    initAuth().then((unsub) => {
+      unsubscribe = unsub;
+    });
+    
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
+  // Helper to re-fetch/sync profile balance
+  const syncProfileBalance = useCallback(async () => {
+    if (!idToken) return;
+    try {
+      const verifyRes = await fetch("/api/auth/verify", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${idToken}`
+        }
+      });
+      if (verifyRes.ok) {
+        const verifyData = await verifyRes.json();
+        setProfile(verifyData.user);
+      }
+    } catch (err) {
+      console.error("Failed to sync profile:", err);
+    }
+  }, [idToken]);
+
+  // Load conversations on mount
+  useEffect(() => {
+    if (!idToken) return;
+    const init = async () => {
+      try {
+        const res = await fetch("/api/conversations", {
+          headers: {
+            "Authorization": `Bearer ${idToken}`
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          let conversationsArray: SavedConversation[] = [];
+          if (Array.isArray(data)) {
+            conversationsArray = data;
+          } else if (data && typeof data === "object") {
+            conversationsArray = Object.values(data);
+          }
+          
+          if (conversationsArray.length > 0) {
+            setConversations(conversationsArray);
+          } else {
+            setConversations(conversationTemplates);
+            await fetch("/api/conversations", {
+              method: "POST",
+              headers: { 
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${idToken}`
+              },
+              body: JSON.stringify({ conversations: conversationTemplates })
+            });
+          }
+        } else {
+          setConversations(conversationTemplates);
+        }
+      } catch (err) {
+        console.error("Error fetching conversations:", err);
+        setConversations(conversationTemplates);
+      } finally {
+        hasLoadedRef.current = true;
+      }
+    };
+    init();
+  }, [idToken]);
+
+  // Save conversations helper
+  const saveConversationsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveConversationsToServer = useCallback((updatedConversations: SavedConversation[]) => {
+    if (!idToken) return;
+    if (saveConversationsTimeoutRef.current) {
+      clearTimeout(saveConversationsTimeoutRef.current);
+    }
+    saveConversationsTimeoutRef.current = setTimeout(async () => {
+      try {
+        await fetch("/api/conversations", {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${idToken}`
+          },
+          body: JSON.stringify({ conversations: updatedConversations })
+        });
+      } catch (err) {
+        console.error("Failed to save conversations:", err);
+      }
+    }, 1000);
+  }, [idToken]);
+
+  // Save conversations whenever they change
+  useEffect(() => {
+    if (!hasLoadedRef.current || !idToken) return;
+    saveConversationsToServer(conversations);
+  }, [conversations, idToken, saveConversationsToServer]);
+
+  const activeConversation = conversations.find((c) => c.id === activeSessionId) || conversations[0] || conversationTemplates[0];
+  const messages = React.useMemo(() => activeConversation ? activeConversation.messages : [], [activeConversation]);
 
   // Right Panel & Workspace states
   const [activeTab, setActiveTab] = useState<"preview" | "code" | "view">("preview");
   const [mobileView, setMobileView] = useState<"chat" | "output">("chat");
   const [deviceType, setDeviceType] = useState<"desktop" | "mobile">("desktop");
-  const [isRunning, setIsRunning] = useState(false);
-  const [extraLogs, setExtraLogs] = useState<TerminalLogEntry[]>([]);
+  
+  // Real-time container state & logs via Server-Sent Events (SSE)
+  const [containerState, setContainerState] = useState<{
+    status: string;
+    alwaysOn: boolean;
+    agentStatus: string;
+    url: string;
+    logs: Record<string, TerminalLogEntry> | TerminalLogEntry[];
+  } | null>(null);
 
-  const files = getFilesForSession(activeSessionId);
+  // Files database fetching & debounced auto-save
+  const [files, setFiles] = useState<ProjectFile[]>([]);
+  const [isFilesLoading, setIsFilesLoading] = useState(true);
+
+  useEffect(() => {
+    if (!idToken) return;
+    const fetchFiles = async () => {
+      setIsFilesLoading(true);
+      try {
+        const res = await fetch(`/api/projects/${activeSessionId}/files`, {
+          headers: {
+            "Authorization": `Bearer ${idToken}`
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setFiles(data);
+          } else if (data && typeof data === "object") {
+            setFiles(Object.values(data));
+          } else {
+            setFiles([]);
+          }
+        } else {
+          setFiles([]);
+        }
+      } catch (err) {
+        console.error("Failed to load files:", err);
+        setFiles([]);
+      } finally {
+        setIsFilesLoading(false);
+      }
+    };
+    fetchFiles();
+  }, [activeSessionId, idToken, containerState?.status]);
+
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveFilesToServer = useCallback((sessionId: string, updatedFiles: ProjectFile[]) => {
+    if (!idToken) return;
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        await fetch(`/api/projects/${sessionId}/files`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${idToken}`
+          },
+          body: JSON.stringify({ files: updatedFiles })
+        });
+      } catch (_err) {
+        console.error("Failed to save files to server:", _err);
+      }
+    }, 1000);
+  }, [idToken]);
+
+  const handleFileChange = useCallback((fileName: string, newContent: string) => {
+    setFiles((prev) => {
+      const updated = (prev || []).map((f) => {
+        if (f.name === fileName) {
+          return { ...f, content: newContent };
+        }
+        return f;
+      });
+      saveFilesToServer(activeSessionId, updated);
+      return updated;
+    });
+  }, [activeSessionId, saveFilesToServer]);
+
+
+
+  useEffect(() => {
+    if (!idToken) return;
+    const eventSource = new EventSource(`/api/projects/${activeSessionId}/stream?token=${encodeURIComponent(idToken)}`);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data && typeof data === "object") {
+          setContainerState(data);
+        }
+      } catch {
+        // Skip non-JSON format system messages
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.error("SSE stream error, reconnecting:", err);
+      eventSource.close();
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [activeSessionId, idToken]);
+
+  const isRunning = containerState ? ["launching", "installing", "running", "deploying"].includes(containerState.status) : false;
+
   const { model } = useFileTree({
     initialExpansion: 'open',
-    paths: files.map(f => f.name),
+    paths: (files || []).map(f => f.name),
     density: 'compact'
   });
 
@@ -283,13 +473,13 @@ export default function Home() {
 
   useEffect(() => {
     if (model) {
-      const paths = files.map(f => f.name);
+      const paths = (files || []).map(f => f.name);
       model.resetPaths(paths);
-      if (paths.length > 0) {
+      if (paths.length > 0 && selection.length === 0) {
         model.getItem(paths[0])?.select();
       }
     }
-  }, [activeSessionId, files, model]);
+  }, [activeSessionId, files, model, selection.length]);
 
   // Interactive preview states
   const [checklistState, setChecklistState] = useState<Record<string, boolean>>({
@@ -382,7 +572,6 @@ export default function Home() {
     const found = conversations.find((t) => t.id === id);
     if (found) {
       setActiveSessionId(id);
-      setExtraLogs([]);
       setSidebarOpen(false);
     }
   };
@@ -410,7 +599,6 @@ export default function Home() {
     });
     
     setActiveSessionId(newId);
-    setExtraLogs([]);
     setSidebarOpen(false);
   }, [selectedAgent, selectedModel]);
 
@@ -419,39 +607,41 @@ export default function Home() {
       const filtered = prev.filter((c) => c.id !== id);
       if (activeSessionId === id) {
         setActiveSessionId("welcome");
-        setExtraLogs([]);
       }
       return filtered;
     });
   }, [activeSessionId]);
 
-  const handleRunCode = React.useCallback(() => {
-    setIsRunning(true);
+  const getLogsArray = React.useCallback((): TerminalLogEntry[] => {
+    if (!containerState || !containerState.logs) {
+      return getLogsForSession(activeSessionId);
+    }
+    if (Array.isArray(containerState.logs)) {
+      return containerState.logs;
+    }
+    return Object.values(containerState.logs);
+  }, [containerState, activeSessionId]);
+
+  const handleRunCode = React.useCallback(async () => {
+    if (!idToken) return;
     setActiveTab("view");
-    setExtraLogs([]);
-
-    setTimeout(() => {
-      setExtraLogs(prev => [
-        ...prev,
-        { timestamp: formatTimestamp(), type: "system", message: "Compiling code changes..." }
-      ]);
-    }, 400);
-
-    setTimeout(() => {
-      setExtraLogs(prev => [
-        ...prev,
-        { timestamp: formatTimestamp(), type: "system", message: "Bundling modules with Turbopack..." }
-      ]);
-    }, 1000);
-
-    setTimeout(() => {
-      setExtraLogs(prev => [
-        ...prev,
-        { timestamp: formatTimestamp(), type: "agent", message: "Compilation successful. Sandbox hot-reloaded active!", status: "success" }
-      ]);
-      setIsRunning(false);
-    }, 1600);
-  }, []);
+    try {
+      const res = await fetch(`/api/projects/${activeSessionId}/run`, { 
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${idToken}`
+        }
+      });
+      if (res.ok) {
+        await syncProfileBalance();
+      } else {
+        const errData = await res.json();
+        alert(errData.error || "Failed to initialize VM container.");
+      }
+    } catch (err) {
+      console.error("Failed to run code:", err);
+    }
+  }, [activeSessionId, idToken, syncProfileBalance]);
 
   const renderPreviewContent = React.useCallback(() => {
     if (activeSessionId === "welcome") {
@@ -633,8 +823,9 @@ export default function Home() {
           <button 
             className={`${styles.deviceToggleBtn} ${deviceType === "mobile" ? styles.deviceToggleBtnActive : ""}`}
             onClick={() => setDeviceType("mobile")}
+            title="Simulating 1320 × 2868 px, 19.5:9 aspect ratio"
           >
-            Mobile (iPhone)
+            Mobile (1320 × 2868, 19.5:9)
           </button>
         </div>
 
@@ -647,7 +838,7 @@ export default function Home() {
                 <span className={styles.browserDot} style={{ backgroundColor: "#27c93f" }} />
               </div>
               <div className={styles.browserUrl}>
-                http://localhost:3000/{activeSessionId}
+                {containerState?.url || `https://project-${activeSessionId}.devus.space`}
               </div>
             </div>
             <div className={styles.browserBody}>
@@ -663,11 +854,18 @@ export default function Home() {
         )}
       </div>
     );
-  }, [deviceType, activeSessionId, renderPreviewContent]);
+  }, [deviceType, activeSessionId, renderPreviewContent, containerState?.url]);
 
   const renderCodeTab = React.useCallback(() => {
-    const files = getFilesForSession(activeSessionId);
-    const activeFile = files.find(f => f.name === selection[0]) || files[0];
+    const activeFile = (files || []).find(f => f.name === selection[0]) || (files || [])[0];
+    
+    if (isFilesLoading || !activeFile) {
+      return (
+        <div style={{ padding: "20px", color: "var(--text-sub)", fontSize: "0.82rem" }}>
+          Loading workspace codebase...
+        </div>
+      );
+    }
     
     return (
       <div className={styles.codeTabContainer}>
@@ -717,8 +915,9 @@ export default function Home() {
               language={activeFile.language}
               theme={theme === "dark" ? "vs-dark" : "light"}
               value={activeFile.content}
+              onChange={(val) => handleFileChange(activeFile.name, val || "")}
               options={{
-                readOnly: true,
+                readOnly: false,
                 minimap: { enabled: false },
                 fontSize: 13,
                 fontFamily: "Consolas, 'Courier New', Courier, monospace",
@@ -742,17 +941,22 @@ export default function Home() {
         </div>
       </div>
     );
-  }, [activeSessionId, selection, model, theme]);
+  }, [files, selection, model, theme, isFilesLoading, handleFileChange]);
 
   const renderTerminalTab = React.useCallback(() => {
-    const logs = [...getLogsForSession(activeSessionId), ...extraLogs];
+    const logs = getLogsArray();
     
     return (
       <div className={styles.terminalContainer}>
         <div className={styles.terminalHeader}>
           <div className={styles.terminalStatus}>
-            <span className={styles.terminalDot}></span>
-            SANDBOX ENVIRONMENT ACTIVE (PORT 3000)
+            <span 
+              className={styles.terminalDot}
+              style={{
+                backgroundColor: isRunning ? "#ffbd2e" : containerState?.status === "complete" ? "#30d158" : "#8e8e93"
+              }}
+            ></span>
+            SANDBOX ENVIRONMENT {containerState?.status ? containerState.status.toUpperCase() : "ACTIVE"} (PORT 3000)
           </div>
           <div style={{ fontSize: "0.72rem", color: "#6a6a6a" }}>
             node v18.16.0
@@ -776,7 +980,7 @@ export default function Home() {
         </div>
       </div>
     );
-  }, [activeSessionId, extraLogs]);
+  }, [containerState, getLogsArray, isRunning]);
 
   // Suggestions list with Hugeicons
   const suggestions: SuggestionChip[] = [
@@ -887,6 +1091,249 @@ export default function Home() {
     }, 1800);
   }, [inputText, isGenerating, selectedAgent, selectedModel, activeSessionId]);
 
+  const handleDemoLogin = async () => {
+    setAuthLoading(true);
+    setAuthError("");
+    try {
+      const email = "demo@devus.space";
+      const password = "demoPassword123";
+      
+      const configRes = await fetch("/api/auth/config");
+      const firebaseConfig = await configRes.json();
+      const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+      const auth = getAuth(app);
+      
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+      } catch (signInErr: unknown) {
+        const error = signInErr as { code?: string; message?: string };
+        if (error.code === "auth/user-not-found" || error.code === "auth/invalid-credential" || error.code === "auth/invalid-email") {
+          try {
+            await createUserWithEmailAndPassword(auth, email, password);
+          } catch (signUpErr: unknown) {
+            const signUpError = signUpErr as { message?: string };
+            throw new Error(signUpError.message);
+          }
+        } else {
+          throw signInErr;
+        }
+      }
+    } catch (err: unknown) {
+      const error = err as { message?: string };
+      setAuthError(error.message || "Failed to log in with demo credentials.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailInput || !passwordInput) {
+      setAuthError("Please fill out all fields.");
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError("");
+    try {
+      const configRes = await fetch("/api/auth/config");
+      const firebaseConfig = await configRes.json();
+      const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+      const auth = getAuth(app);
+
+      if (authMode === "login") {
+        await signInWithEmailAndPassword(auth, emailInput, passwordInput);
+      } else {
+        await createUserWithEmailAndPassword(auth, emailInput, passwordInput);
+      }
+    } catch (err: unknown) {
+      const error = err as { message?: string };
+      console.error(error);
+      setAuthError(error.message || "Authentication failed.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const renderAuthOverlay = () => {
+    return (
+      <div className="auth-overlay-bg" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", padding: "20px", fontFamily: "system-ui, -apple-system, sans-serif", color: "#ffffff" }}>
+        <style dangerouslySetInnerHTML={{ __html: `
+          @keyframes gradientBg {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+          }
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+          .auth-overlay-bg {
+            background: linear-gradient(-45deg, #0f0f11, #161622, #070708, #111113);
+            background-size: 400% 400%;
+            animation: gradientBg 15s ease infinite;
+          }
+          .glass-card {
+            background: rgba(22, 22, 26, 0.45);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            border-radius: 20px;
+            width: 100%;
+            max-width: 440px;
+            padding: 40px;
+            transition: all 0.3s ease;
+          }
+          .input-glow:focus {
+            outline: none;
+            border-color: #bf5af2;
+            box-shadow: 0 0 12px rgba(191, 90, 242, 0.35);
+          }
+          .btn-gradient {
+            background: linear-gradient(135deg, #bf5af2, #af52de);
+            box-shadow: 0 4px 14px rgba(191, 90, 242, 0.3);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border: none;
+            color: #ffffff;
+            font-weight: 600;
+            cursor: pointer;
+          }
+          .btn-gradient:hover {
+            transform: translateY(-1.5px);
+            box-shadow: 0 6px 20px rgba(191, 90, 242, 0.5);
+          }
+          .btn-gradient:active {
+            transform: translateY(0px);
+          }
+          .tab-active {
+            color: #ffffff;
+            border-bottom: 2px solid #bf5af2;
+          }
+          .tab-inactive {
+            color: #8e8e93;
+            border-bottom: 2px solid transparent;
+          }
+          .tab-inactive:hover {
+            color: #ffffff;
+          }
+        `}} />
+
+        <div className="glass-card">
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: "32px" }}>
+            <div style={{ fontSize: "2.2rem", fontWeight: 800, letterSpacing: "-1px", background: "linear-gradient(135deg, #ffffff, #bf5af2)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", display: "flex", alignItems: "center", gap: "8px" }}>
+              devus
+            </div>
+            <p style={{ color: "#8e8e93", fontSize: "0.85rem", marginTop: "8px", textAlign: "center" }}>
+              Secure Sandbox Development Platform
+            </p>
+          </div>
+
+          <div style={{ display: "flex", width: "100%", borderBottom: "1px solid rgba(255,255,255,0.08)", marginBottom: "24px" }}>
+            <button 
+              onClick={() => { setAuthMode("login"); setAuthError(""); }}
+              className={authMode === "login" ? "tab-active" : "tab-inactive"}
+              style={{ flex: 1, padding: "12px", background: "none", border: "none", fontSize: "0.95rem", fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}
+            >
+              Sign In
+            </button>
+            <button 
+              onClick={() => { setAuthMode("signup"); setAuthError(""); }}
+              className={authMode === "signup" ? "tab-active" : "tab-inactive"}
+              style={{ flex: 1, padding: "12px", background: "none", border: "none", fontSize: "0.95rem", fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}
+            >
+              Create Account
+            </button>
+          </div>
+
+          <form onSubmit={handleAuthSubmit} style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+            {authError && (
+              <div style={{ padding: "12px", borderRadius: "10px", backgroundColor: "rgba(255,69,58,0.08)", border: "1px solid rgba(255,69,58,0.2)", color: "#ff453a", fontSize: "0.8rem", lineHeight: "1.4" }}>
+                {authError}
+              </div>
+            )}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <label style={{ fontSize: "0.75rem", color: "#8e8e93", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Email Address</label>
+              <input 
+                type="email"
+                required
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                className="input-glow"
+                placeholder="you@domain.com"
+                style={{ width: "100%", padding: "12px 16px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(0,0,0,0.25)", color: "#ffffff", fontSize: "0.9rem", transition: "all 0.2s" }}
+              />
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <label style={{ fontSize: "0.75rem", color: "#8e8e93", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Password</label>
+              <input 
+                type="password"
+                required
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                className="input-glow"
+                placeholder="••••••••"
+                style={{ width: "100%", padding: "12px 16px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(0,0,0,0.25)", color: "#ffffff", fontSize: "0.9rem", transition: "all 0.2s" }}
+              />
+            </div>
+
+            <button 
+              type="submit"
+              disabled={authLoading}
+              className="btn-gradient"
+              style={{ width: "100%", padding: "14px", borderRadius: "10px", fontSize: "0.95rem", marginTop: "10px", display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}
+            >
+              {authLoading ? (
+                <div style={{ width: "18px", height: "18px", borderRadius: "50%", border: "2px solid rgba(255,255,255,0.2)", borderTopColor: "#ffffff", animation: "spin 0.8s linear infinite" }} />
+              ) : (
+                authMode === "login" ? "Sign In to Platform" : "Create My Account"
+              )}
+            </button>
+          </form>
+
+          <div style={{ display: "flex", alignItems: "center", margin: "24px 0", width: "100%" }}>
+            <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(255,255,255,0.08)" }} />
+            <span style={{ padding: "0 12px", color: "#8e8e93", fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "1px" }}>Quick Test</span>
+            <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(255,255,255,0.08)" }} />
+          </div>
+
+          <button 
+            type="button"
+            disabled={authLoading}
+            onClick={handleDemoLogin}
+            style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid rgba(191,90,242,0.3)", backgroundColor: "rgba(191,90,242,0.06)", color: "#bf5af2", fontSize: "0.88rem", fontWeight: 600, cursor: "pointer", transition: "all 0.2s", display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}
+          >
+            {authLoading ? (
+              <div style={{ width: "18px", height: "18px", borderRadius: "50%", border: "2px solid rgba(191,90,242,0.2)", borderTopColor: "#bf5af2", animation: "spin 0.8s linear infinite" }} />
+            ) : (
+              "Launch with Demo Credentials"
+            )}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  if (!authReady) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", backgroundColor: "#0f0f11", color: "#ffffff", fontFamily: "sans-serif" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px" }}>
+          <div className="spinner" style={{ width: "32px", height: "32px", borderRadius: "50%", border: "3px solid rgba(255,255,255,0.1)", borderTopColor: "#bf5af2", animation: "spin 1s linear infinite" }}></div>
+          <span style={{ fontSize: "0.9rem", color: "#8e8e93" }}>Initializing Workspace Auth...</span>
+          <style dangerouslySetInnerHTML={{ __html: `
+            @keyframes spin {
+              to { transform: rotate(360deg); }
+            }
+          `}} />
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return renderAuthOverlay();
+  }
+
   return (
     <div className={`app-container ${theme === "dark" ? "dark-theme" : "light-theme"}`}>
       {/* App Header */}
@@ -908,11 +1355,11 @@ export default function Home() {
             </svg>
           </button>
           
-          <div className={styles.appLogo}>
-            <span className={styles.appLogoDot}></span>
-            devus
-          </div>
-          <span className={styles.appVersionBadge}>v1.2.4</span>
+          <Link href="/" aria-label="devus home" className={styles.appLogoLink}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="devus logo" className={styles.logoImage} />
+            <span className={styles.logoText}>devus</span>
+          </Link>
         </div>
         
         <div className={styles.appHeaderCenter}>
@@ -926,9 +1373,46 @@ export default function Home() {
         </div>
 
         <div className={styles.appHeaderRight}>
+          {profile && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.75rem", color: "var(--text-sub)", backgroundColor: "rgba(255,255,255,0.03)", padding: "4px 10px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>
+              <span style={{ fontWeight: 600, color: profile.role === "admin" ? "#bf5af2" : "#30d158" }}>
+                {profile.role.toUpperCase()}
+              </span>
+              <span style={{ color: "rgba(255,255,255,0.15)" }}>|</span>
+              <span>
+                Wallet: <strong style={{ color: "#bf5af2" }}>{profile.balance}</strong> credits
+              </span>
+            </div>
+          )}
+          {user && (
+            <button 
+              onClick={() => {
+                const auth = getAuth();
+                signOut(auth).then(() => {
+                  setUser(null);
+                  setIdToken(null);
+                  setProfile(null);
+                });
+              }}
+              className={styles.themeTogglePill}
+              style={{ border: "1px solid rgba(255, 69, 58, 0.3)", backgroundColor: "rgba(255, 69, 58, 0.1)", color: "#ff453a", height: "28px", padding: "0 10px" }}
+              title="Sign Out"
+            >
+              Sign Out
+            </button>
+          )}
           <div className={styles.systemStatusBadge}>
-            <span className={styles.systemStatusGlow}></span>
-            Sandbox: Active
+            <span 
+              className={styles.systemStatusGlow}
+              style={{
+                backgroundColor: containerState?.status === "complete" 
+                  ? "#30d158" 
+                  : isRunning 
+                    ? "#ffbd2e" 
+                    : "#8e8e93"
+              }}
+            ></span>
+            Sandbox: {containerState?.status ? containerState.status.toUpperCase() : "ACTIVE"}
           </div>
           <button 
             onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
@@ -1079,8 +1563,15 @@ export default function Home() {
                 <HugeiconsIcon icon={Menu01Icon} size={22} strokeWidth={1.8} />
               </button>
               <div className={styles.statusIndicator}>
-                <span className={styles.statusGlow}></span>
-                {selectedAgent} Active
+                <span 
+                  className={styles.statusGlow}
+                  style={{
+                    backgroundColor: containerState?.agentStatus && containerState.agentStatus !== "idle"
+                      ? "#bf5af2" 
+                      : "#30d158"
+                  }}
+                ></span>
+                {selectedAgent} {containerState?.agentStatus ? `(${containerState.agentStatus})` : "Active"}
               </div>
             </div>
             <div className={styles.statusRight}>
@@ -1092,38 +1583,72 @@ export default function Home() {
 
           {/* Scrollable Conversation History */}
           <div className={styles.chatContainer}>
-            {messages.map((msg) => (
-              <div key={msg.id} className={styles.messageWrapper}>
-                <div
-                  className={`${styles.messageBubble} ${
-                    msg.sender === "user" ? styles.messageUser : styles.messageAssistant
-                  }`}
-                >
-                  {msg.sender === "assistant" && (
-                    <div className={styles.assistantHeader}>
-                      <span>{msg.agent || selectedAgent}</span>
-                      <span>&bull;</span>
-                      <span>{msg.model || selectedModel}</span>
-                      <span style={{ marginLeft: "auto" }}>{msg.timestamp}</span>
+            {messages.map((msg) => {
+              const isUser = msg.sender === "user";
+              return (
+                <div key={msg.id} className={styles.messageWrapper}>
+                  <div
+                    className={`${styles.messageBubble} ${
+                      isUser ? styles.messageUser : styles.messageAssistant
+                    }`}
+                  >
+                    {!isUser && (
+                      <div className={styles.assistantHeader}>
+                        <span>{msg.agent || selectedAgent}</span>
+                        <span>&bull;</span>
+                        <span>{msg.model || selectedModel}</span>
+                        <span style={{ marginLeft: "auto" }}>{msg.timestamp}</span>
+                      </div>
+                    )}
+                    <div 
+                      className={styles.assistantContent}
+                      dangerouslySetInnerHTML={{
+                        __html: msg.text
+                          .replace(/^### (.*$)/gim, "<h3>$1</h3>")
+                          .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+                          .replace(/\*(.*?)\*/g, "<em>$1</em>")
+                          .replace(/`(.*?)`/g, "<code>$1</code>")
+                          .replace(/^\- (.*$)/gim, "<li>$1</li>")
+                          .replace(/(<li>.*<\/li>)/gim, "<ul>$1</ul>")
+                          // Clean consecutive lists
+                          .replace(/<\/ul>\s*<ul>/g, "")
+                      }}
+                    />
+                  </div>
+                  {isUser && (
+                    <div className={styles.userActionsRow}>
+                      <span className={styles.userMessageTime}>{msg.timestamp || "7:47 AM"}</span>
+                      <div className={styles.userActionsGroup}>
+                        <button 
+                          className={styles.userActionBtn} 
+                          title="Edit message"
+                          onClick={() => {
+                            setInputText(msg.text);
+                            textareaRef.current?.focus();
+                          }}
+                        >
+                          <svg aria-hidden="true" role="graphics-symbol" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                            <path d="M11.243 3.457a.803.803 0 0 0-1.13 0l-.554.552a.075.075 0 0 0 0 .106l1.03 1.03a.075.075 0 0 0 .107 0l.547-.546a.1.1 0 0 0 .019-.032.804.804 0 0 0-.02-1.11m-2.246 1.22a.075.075 0 0 0-.106 0l-6.336 6.326a1.1 1.1 0 0 0-.237.393l-.27.87v.002c-.062.232.153.466.389.383l.863-.267q.221-.061.397-.239l6.332-6.331a.075.075 0 0 0 0-.106zm-3.355 6.898a.08.08 0 0 0-.053.022l-1.1 1.1a.075.075 0 0 0 .053.128h9.06a.625.625 0 1 0 0-1.25z"></path>
+                          </svg>
+                        </button>
+                        <button 
+                          className={styles.userActionBtn} 
+                          title="Copy text"
+                          onClick={() => {
+                            navigator.clipboard.writeText(msg.text);
+                            alert("Copied to clipboard!");
+                          }}
+                        >
+                          <svg aria-hidden="true" role="graphics-symbol" viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                            <path d="M3.25 1.375c-1.036 0-1.875.84-1.875 1.875v6c0 1.036.84 1.875 1.875 1.875h1.625v1.625c0 1.036.84 1.875 1.875 1.875h6c1.036 0 1.875-.84 1.875-1.875v-6c0-1.036-.84-1.875-1.875-1.875h-1.625V3.25c0-1.036-.84-1.875-1.875-1.875zM2.625 3.25c0-.345.28-.625.625-.625h6c.345 0 .625.28.625.625v1.625H6.75c-1.036 0-1.875.84-1.875 1.875v3.125H3.25a.625.625 0 0 1-.625-.625zm3.5 3.5c0-.345.28-.625.625-.625h6c.345 0 .625.28.625.625v6c0 .345-.28.625-.625.625h-6a.625.625 0 0 1-.625-.625z"></path>
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                   )}
-                  <div 
-                    className={styles.assistantContent}
-                    dangerouslySetInnerHTML={{
-                      __html: msg.text
-                        .replace(/^### (.*$)/gim, "<h3>$1</h3>")
-                        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-                        .replace(/\*(.*?)\*/g, "<em>$1</em>")
-                        .replace(/`(.*?)`/g, "<code>$1</code>")
-                        .replace(/^\- (.*$)/gim, "<li>$1</li>")
-                        .replace(/(<li>.*<\/li>)/gim, "<ul>$1</ul>")
-                        // Clean consecutive lists
-                        .replace(/<\/ul>\s*<ul>/g, "")
-                    }}
-                  />
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {isGenerating && (
               <div className={styles.messageWrapper}>
@@ -1189,7 +1714,6 @@ export default function Home() {
                       }
                       return c;
                     }));
-                    setExtraLogs([]);
                   }}
                   className={styles.actionIconBtn}
                   title="Reset conversation"
@@ -1216,7 +1740,7 @@ export default function Home() {
                     handleSubmit(e);
                   }
                 }}
-                placeholder="Help me understand why users are dropping off during onboarding"
+                placeholder="Message devus..."
                 className={styles.promptTextarea}
               />
 

@@ -11,7 +11,8 @@
 .appHeader {
   height: 52px;
   width: 100%;
-  background-color: var(--bg-sidebar);
+  background-color: var(--bg-nav);
+  backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--divider-color);
   display: flex;
   align-items: center;
@@ -19,6 +20,8 @@
   padding: 0 20px;
   flex-shrink: 0;
   z-index: 190;
+  position: sticky;
+  top: 0;
 }
 
 .appHeaderLeft,
@@ -48,31 +51,47 @@
   background-color: var(--item-bg-hover);
 }
 
-.appLogo {
-  font-family: var(--font-display);
-  font-size: 1.05rem;
-  font-weight: 800;
+.appHeaderLeft {
   display: flex;
   align-items: center;
-  gap: 6px;
+}
+
+.appLogoLink {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
   color: var(--text-main);
+  height: 44px; /* Ensure 44px tap target height on mobile/desktop */
+  min-width: 44px;
+  padding: 0 8px;
+  margin-left: -8px; /* Offset padding to align perfectly with left edge */
+  border-radius: 8px;
+  transition: opacity 0.2s ease;
+}
+
+.appLogoLink:hover {
+  opacity: 0.85;
+}
+
+.logoImage {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.appLogoLink:hover .logoImage {
+  transform: scale(1.05);
+}
+
+.logoText {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 800;
   letter-spacing: -0.03em;
-}
-
-.appLogoDot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-purple) 0%, var(--accent-cyan) 100%);
-  box-shadow: 0 0 8px var(--accent-purple);
-  margin-right: 2px;
-}
-
-.appLogoSub {
-  font-weight: 300;
-  color: var(--text-sub);
-  opacity: 0.8;
-  letter-spacing: -0.01em;
+  color: var(--text-main);
 }
 
 .appVersionBadge {
@@ -324,7 +343,6 @@
 .resizeHandle {
   width: 6px;
   background-color: transparent;
-  border-left: 1px solid var(--divider-color);
   cursor: col-resize;
   position: relative;
   z-index: 10;
@@ -334,11 +352,22 @@
   margin-right: -3px;
 }
 
-.resizeHandle:hover,
-.resizeHandleActive {
+.resizeHandle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 1px;
+  background-color: var(--divider-color);
+  transition: all 0.15s ease;
+  transform: translateX(-50%);
+}
+
+.resizeHandle:hover::after,
+.resizeHandleActive::after {
+  width: 2px;
   background-color: var(--accent-purple);
-  border-left-color: var(--accent-purple);
-  box-shadow: 0 0 8px var(--accent-purple);
 }
 
 .outputPanel {
@@ -435,24 +464,26 @@
 
 .messageUser {
   align-self: flex-end;
-  background-color: var(--panel-card-bg);
-  border: 1px solid var(--panel-card-border);
-  padding: 14px 20px;
-  border-radius: 18px 18px 4px 18px;
+  background-color: var(--bg-chip);
+  border: none;
+  padding: 6px 14px;
+  border-radius: 16px;
   color: var(--text-main);
   font-size: 0.95rem;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+  line-height: 1.5;
+  box-shadow: none;
+  transition: background-color 0.1s ease;
+}
+
+.messageUser:hover {
+  background-color: var(--bg-chip-hover);
 }
 
 .messageAssistant {
   align-self: flex-start;
-  background: var(--bg-prompt-card);
-  border: 1px solid var(--border-prompt-input);
-  padding: 22px;
-  border-radius: 20px;
   color: var(--text-main);
-  box-shadow: 0 6px 24px rgba(0,0,0,0.03);
   width: 100%;
+  padding: 12px 0;
 }
 
 .assistantHeader {
@@ -549,8 +580,8 @@
 .actionIconBtn {
   background: transparent;
   border: none;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   color: var(--text-sub);
   display: flex;
@@ -568,34 +599,36 @@
 /* prompt-container input card */
 .promptContainer {
   background: var(--bg-prompt-input);
-  border: 1.5px solid var(--border-prompt-input);
-  border-radius: 15px;
-  padding: 16px 20px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border-prompt-input);
+  border-radius: 16px;
+  padding: 0;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  gap: 0;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   position: relative;
+  overflow: hidden;
 }
 
 .promptContainerFocused {
   border-color: var(--accent-purple);
-  box-shadow: 0 8px 30px rgba(175, 82, 222, 0.06);
+  box-shadow: 0 4px 20px rgba(175, 82, 222, 0.08);
 }
 
 .promptTextarea {
   width: 100%;
   min-height: 56px;
-  max-height: 140px;
+  max-height: 240px;
   border: none;
   outline: none;
   background: transparent;
   color: var(--text-prompt-value);
   font-size: 0.98rem;
-  line-height: 1.55;
+  line-height: 1.5;
   resize: none;
   font-family: var(--font-body);
+  padding: 12px 12px 0px 14px;
 }
 
 .promptTextarea::placeholder {
@@ -605,8 +638,8 @@
 
 .promptImprovementBtn {
   position: absolute;
-  top: 16px;
-  right: 20px;
+  top: 12px;
+  right: 12px;
   background: transparent;
   border: none;
   color: var(--accent-purple);
@@ -629,15 +662,16 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-top: 1px solid var(--divider-color);
-  padding-top: 12px;
+  padding: 4px 8px 8px 8px;
+  gap: 12px;
+  min-width: 0;
 }
 
 .auxiliaryLeft,
 .auxiliaryRight {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 /* Send button container styles */
@@ -693,12 +727,16 @@
 .sendBtn {
   display: flex;
   align-items: center;
-  padding: 0.375rem;
-  border-radius: 9999px;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
   transition: all 150ms ease;
   cursor: pointer;
   border: none;
   outline: none;
+  flex-shrink: 0;
+  padding: 0;
 }
 
 .sendBtn:hover {
@@ -707,7 +745,7 @@
 
 .sendBtnDisabled {
   color: var(--text-sub) !important;
-  background-color: var(--panel-card-bg) !important;
+  background-color: var(--bg-chip) !important;
   pointer-events: none;
 }
 
@@ -950,13 +988,12 @@
 .previewContainer {
   width: 100%;
   height: 100%;
-  padding: 24px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   background-color: var(--bg-sidebar);
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .previewToolbar {
@@ -990,11 +1027,12 @@
 }
 
 .phoneFrame {
-  width: 320px;
-  height: 540px;
-  border-radius: 40px;
+  flex: 1;
+  max-height: 100%;
+  aspect-ratio: 1320 / 2868;
+  border-radius: 36px;
   background-color: var(--bg-app);
-  border: 12px solid #1c1c1e;
+  border: 10px solid #1c1c1e;
   box-shadow: 0 20px 50px rgba(0,0,0,0.15);
   display: flex;
   flex-direction: column;
@@ -1019,8 +1057,7 @@
 
 .browserFrame {
   width: 100%;
-  max-width: 760px;
-  height: 480px;
+  flex: 1;
   border-radius: 12px;
   background-color: var(--bg-app);
   border: 1px solid var(--divider-color);
@@ -1338,6 +1375,60 @@
 
 .logWarning {
   color: #ffd60a;
+}
+
+/* User message hover actions */
+.userActionsRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  height: 28px;
+  padding-top: 4px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  align-self: flex-end;
+  margin-right: 4px;
+}
+
+.messageWrapper:hover .userActionsRow {
+  opacity: 1;
+}
+
+.userMessageTime {
+  font-size: 0.72rem;
+  color: var(--text-sub);
+  margin-right: 8px;
+  display: flex;
+  align-items: center;
+  user-select: none;
+}
+
+.userActionsGroup {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+
+.userActionBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-sub);
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.userActionBtn:hover {
+  color: var(--text-main);
+  background-color: var(--item-bg-hover);
 }
 
 /* Sidebar slide-open media query support */
